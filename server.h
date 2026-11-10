@@ -37,7 +37,12 @@ class Server
 
     void startServer(); //初始化服务器
 
+
+    //处理依赖倒置的接口(不暴露业务层细节)
+    std::function<void(int)> disconnect;
 public:
+    void setDisconnect(std::function<void(int)>func);
+
     Server();
     ~Server();
     void run(threadPool&pool); //启动服务器(epoll架构)

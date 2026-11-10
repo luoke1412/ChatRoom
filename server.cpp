@@ -251,3 +251,8 @@ void Server::broadcast(MSG&msg_struct,int flag) //广播：给所有的客户端
         }
     }while(ret!=MAX_MSG_SIZE);
 }
+
+ void Server::setDisconnect(std::function<void(int)>func)
+ {
+    disconnect=func;
+ }

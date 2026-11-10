@@ -78,7 +78,7 @@ class Service
      void MessageForward(MSG&msg_struct);
 
      //提供修改容器的接口
-    void updateLoginuser(int fd);
+    void delLoginuser(int fd);
 };
 
 

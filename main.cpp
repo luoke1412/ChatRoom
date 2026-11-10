@@ -17,9 +17,12 @@ int main()
 
        //初始化网络层
        Server server;
-        
         //初始化业务
         Service service(server);
+        server.setDisconnect([&service](int fd){ //初始化回调函数
+            service.delLoginuser(fd);
+        }); 
+
        //初始化线程池
        threadPool pool(100,service);
        
