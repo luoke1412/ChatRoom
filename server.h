@@ -48,14 +48,17 @@ public:
     void run(threadPool&pool); //启动服务器(epoll架构)
 
     //给业务层提供的接口, 广播是网络层的天然职责
-    void broadcast(MSG&msg_struct,int flag); //广播：给所有的客户端发送消息 (默认)
+   // void broadcast(MSG&msg_struct,int flag); //广播：给所有的客户端发送消息 (默认)
+//已移动到业务层，理由：这里的广播是广播给所有连接上的客户端，而不是已经登录的客户端
+//强行保留网络层需要关心谁谁谁登录没，不符合单一职责。   而且在聊天室广播和网络层面的广播不是一回事
+
 
     // 添加到业务层
     // 其实最好是要给报文消息加一个目的套接字字段，于是就可以单独转发给某个人
     // void MessageForward(MSG&msg_struct);
 
 
-    //因为涉及到处理粘包和半包，封装一个发送和接收的接口
+    //因为涉及到处理粘包和半包，封装一个发送和接收的接口(因为不关注发给谁，发什么内容，只管发送本身，可以留)
     void send_msg(int sockfd,const char*buf);
 
     //void recv_msg()  用不上

@@ -173,6 +173,7 @@ void Server::run(threadPool&pool) //启动服务器(epoll架构)
                             cli_sockaddr.erase(evfd); // 删除客户端套接字地址信息
                         }
                         //删除业务层维护的登录注册表
+                        disconnect(evfd);
                         
                         close(evfd);
                         break;
@@ -193,7 +194,7 @@ void Server::run(threadPool&pool) //启动服务器(epoll架构)
     }
 }
 
-
+/*   已经移到业务层
 void Server::broadcast(MSG&msg_struct,int flag) //广播：给所有的客户端发送消息
 {
     //构造新的消息报文
@@ -236,7 +237,7 @@ void Server::broadcast(MSG&msg_struct,int flag) //广播：给所有的客户端
     }
     
 }
-
+*/
 
  void Server::send_msg(int sockfd,const char*buf)
 {

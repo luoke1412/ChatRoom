@@ -22,7 +22,7 @@ void Service::handleLogin(int sockfd,MSG&msg_struct)
         }
       
           //3.广播消息
-        server.broadcast(msg_struct,LOGIN);    
+         broadcast(msg_struct,LOGIN);    
       }
 
       else{ //失败处理，构造失败报文
@@ -52,15 +52,16 @@ void Service::handleChat(int sockfd,MSG&msg_struct)
     }
     //发送也放在锁里面，因为fd本身也是临界资源
 }
+
 void Service::handleQuit(int sockfd,MSG&msg_struct)
 {
     std::string myname(msg_struct.myname);
       //1.查询和更新数据库
       
-      //2更新状态
-      
+      //2更新两个表状态
+      delLoginuser(sockfd);
       //3.广播消息
-    server.broadcast(msg_struct,QUIT); 
+    broadcast(msg_struct,QUIT); 
 }
 
 
@@ -74,12 +75,14 @@ void Service::handleQuit(int sockfd,MSG&msg_struct)
       {
           //2维护哈希表
         {
-          std::lock_guard<std::mutex>lock(mutex_cli);
-          cliname_fd[myname]=sockfd;
+          std::lock_guard<std::mutex>lock(mutex_fd);
+          fd_cliname[sockfd]=myname;
         }
       
-          //3.广播消息
-        server.broadcast(msg_struct,LOGIN);    
+          //3.发送成功消息
+          bzero(msg_struct.text,TEXT);
+          strcpy(msg_struct.text,"注册成功");
+          server.send_msg(sockfd,msg_struct.serialize().c_str());
       }
 
       else{ //失败处理，构造失败报文
@@ -100,14 +103,15 @@ void Service::MessageForward(MSG&msg_struct)
 
    std::string toname(msg_struct.toname,strlen(msg_struct.toname));
 
-   if(cliname_fd.find(toname)!=cliname_fd.end()) 
    {
+       std::lock_guard<std::mutex>lock(mutex_cli);
+       if(cliname_fd.find(toname)==cliname_fd.end()) return; 
+   }
         int sockfd=cliname_fd[toname];
         //序列化后发送
         std::string msg_string=msg_struct.serialize();
 
         server.send_msg(sockfd,msg_string.c_str());
-   }
 }
 
 Service::Service(Server&s):server(s){}
@@ -118,11 +122,65 @@ Service::~Service()
 
 }
 
-void Service::updateLoginuser(int fd)
+void Service::delLoginuser(int fd)
 {
-    if(fd_cliname.find(fd)==fd_cliname.end()) return;
-
-    if(cliname_fd.find(fd_cliname[fd])!=cliname_fd.end())
-    cliname_fd.erase(fd_cliname[fd]); //相当快
+  {
+    std::lock_guard<std::mutex>lock(mutex_fd);
+     if(fd_cliname.find(fd)==fd_cliname.end()) return;
+  }
+   
+  {
+    std::lock_guard<std::mutex>lock(mutex_cli);
+      if(cliname_fd.find(fd_cliname[fd])!=cliname_fd.end())
+      cliname_fd.erase(fd_cliname[fd]); //相当快
+  }
+  {
+    std::lock_guard<std::mutex>lock(mutex_fd);
     fd_cliname.erase(fd);
+  }
+}
+
+
+
+void Service::broadcast(MSG&msg_struct,int flag) //广播：给所有的客户端发送消息
+{
+    //构造新的消息报文
+    struct MSG newmsg;
+    msg_struct.type=flag;
+    strcpy(newmsg.myname,msg_struct.myname);
+    strcpy(newmsg.toname,msg_struct.toname);
+    newmsg.settimeStamp();
+    switch(flag)
+    {
+        case LOGIN:
+            sprintf(newmsg.text,"%s登录成功!\n",newmsg.myname);
+            break;
+        
+        case QUIT:
+            sprintf(newmsg.text,"%s退出成功!\n",newmsg.myname);
+            break;
+        
+        case CHAT:
+            strcpy(newmsg.text,msg_struct.text); //单纯的发送消息
+            break;
+    }
+
+    //先序列化再发
+    std::string newmsg_string=newmsg.serialize(); 
+    
+    {
+        std::lock_guard<std::mutex>lock(mutex_fd);
+        
+        for(auto&c:fd_cliname)  //c就相当于 *it
+        {
+            //套接字句柄
+            int sockfd=c.first;
+            //注意：只发给已经登录进去的用户，保存登录信息的容器在业务层
+
+            //发送消息
+            server.send_msg(sockfd,newmsg_string.c_str());
+           
+        }
+    }
+    
 }

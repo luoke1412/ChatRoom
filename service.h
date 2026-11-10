@@ -37,9 +37,9 @@ class Service
 
     void handleLogin(int sockfd,MSG&msg_struct);
     void handleChat(int sockfd,MSG&msg_struct);
-    void handleQuit(int sockfd,MSG&msg_struct);
+    void handleQuit(int sockfd,MSG&msg_struct);  //quit是服务器主动发送退出消息，server那里是掉线，由server通知
     void handleRegister(int sockfd,MSG&msg_struct); //登录才加入哈希表，注册只是注册用户信息
-
+    void broadcast(MSG&msg_struct,int flag);
     public:
     Service(Server&s); //跟数据库相关
     ~Service();
