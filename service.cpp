@@ -10,16 +10,28 @@
 void Service::handleLogin(int sockfd,MSG&msg_struct)
 {   
       std::string myname(msg_struct.myname);
-      //1.更新数据库
-      
-      //2维护哈希表
+      //1.查询数据库
+      //select
+      bool res=1;
+      if(res) //如果成功
       {
-        std::lock_guard<std::mutex>lock(mutex);
-        cliname_fd[myname]=sockfd;
+          //2维护哈希表
+        {
+          std::lock_guard<std::mutex>lock(mutex_cli);
+          cliname_fd[myname]=sockfd;
+        }
+      
+          //3.广播消息
+        server.broadcast(msg_struct,LOGIN);    
+      }
+
+      else{ //失败处理，构造失败报文
+          MSG errbuf;
+          errbuf.type=ERROR;
+          strcpy(errbuf.text,"未查询到账号信息，请重新登录");
+          server.send_msg(sockfd,errbuf.serialize().c_str());
       }
       
-      //3.广播消息
-    server.broadcast(msg_struct,LOGIN);    
 }
 void Service::handleChat(int sockfd,MSG&msg_struct)
 {
@@ -29,7 +41,7 @@ void Service::handleChat(int sockfd,MSG&msg_struct)
 
     //2.查询哈希表并转发
     {
-        std::lock_guard<std::mutex>lock(mutex);
+        std::lock_guard<std::mutex>lock(mutex_cli);
         if(cliname_fd.find(myname)!=cliname_fd.end())
         {
             int fd=cliname_fd[myname];
@@ -43,18 +55,40 @@ void Service::handleChat(int sockfd,MSG&msg_struct)
 void Service::handleQuit(int sockfd,MSG&msg_struct)
 {
     std::string myname(msg_struct.myname);
-      //1.更新数据库
+      //1.查询和更新数据库
       
-      //2维护哈希表
-      {
-        std::lock_guard<std::mutex>lock(mutex);
-        cliname_fd.erase(myname);
-      }
+      //2更新状态
       
       //3.广播消息
     server.broadcast(msg_struct,QUIT); 
 }
 
+
+ void Service::handleRegister(int sockfd,MSG&msg_struct)
+ {
+     std::string myname(msg_struct.myname);
+      //1.查询数据库
+      //select
+      bool res=1;
+      if(res) //如果成功
+      {
+          //2维护哈希表
+        {
+          std::lock_guard<std::mutex>lock(mutex_cli);
+          cliname_fd[myname]=sockfd;
+        }
+      
+          //3.广播消息
+        server.broadcast(msg_struct,LOGIN);    
+      }
+
+      else{ //失败处理，构造失败报文
+          MSG errbuf;
+          errbuf.type=ERROR;
+          strcpy(errbuf.text,"未查询到账号信息，请重新登录");
+          server.send_msg(sockfd,errbuf.serialize().c_str());
+      }
+ }
 
 
 void Service::MessageForward(MSG&msg_struct)
@@ -82,4 +116,13 @@ Service::Service(Server&s):server(s){}
 Service::~Service()
 {
 
+}
+
+void Service::updateLoginuser(int fd)
+{
+    if(fd_cliname.find(fd)==fd_cliname.end()) return;
+
+    if(cliname_fd.find(fd_cliname[fd])!=cliname_fd.end())
+    cliname_fd.erase(fd_cliname[fd]); //相当快
+    fd_cliname.erase(fd);
 }

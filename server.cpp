@@ -172,6 +172,8 @@ void Server::run(threadPool&pool) //启动服务器(epoll架构)
                             std::lock_guard<std::mutex>lock(mutex);
                             cli_sockaddr.erase(evfd); // 删除客户端套接字地址信息
                         }
+                        //删除业务层维护的登录注册表
+                        
                         close(evfd);
                         break;
                     }
@@ -199,6 +201,7 @@ void Server::broadcast(MSG&msg_struct,int flag) //广播：给所有的客户端
     msg_struct.type=flag;
     strcpy(newmsg.myname,msg_struct.myname);
     strcpy(newmsg.toname,msg_struct.toname);
+    newmsg.settimeStamp();
     switch(flag)
     {
         case LOGIN:
@@ -224,7 +227,8 @@ void Server::broadcast(MSG&msg_struct,int flag) //广播：给所有的客户端
         {
             //套接字句柄
             int sockfd=c.first;
-            
+            //注意：只发给已经登录进去的用户，保存登录信息的容器在业务层
+
             //发送消息
             send_msg(sockfd,newmsg_string.c_str());
            

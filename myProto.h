@@ -5,6 +5,9 @@
 #define LOGIN 1
 #define CHAT 2
 #define QUIT 3
+#define REGISTER 4 //注册功能
+#define ERROR 5  //错误报文
+
 
 #define NAME 128 //定义最大名称：如果客户端输入超过了，会提示重新输入
 #define TEXT 128 //定义最大消息输入量：如果客户端输入超过了，会提示重新输入
@@ -22,9 +25,7 @@ struct MSG
     char myname[NAME];  //如果是聊天室，没有ID那怎么行
     char toname[NAME];  //目标用户的ID，为"ALL"则为广播(用ID来指代客户端，上层不需要知道对方的IP)
     char text[TEXT];  //消息正文
-    char timestamp[TIME]; // 发送时间戳 类似格式：[xxx年 xxx月 xxx日 xxx时 xxx分  xxx秒]
-
-
+    char timestamp[TIME]; // 发送时间戳 类似格式：[xxx年-xxx月-xxx日 xxx时:xxx分:xxx秒]
 
      //这里再补充两个方法，用于提高传输效率
     //序列化和反序列化：
@@ -36,4 +37,6 @@ struct MSG
 
      //反序列化：将string字符串恢复为结构体：接收之后用
     void reserialize(std::string msg_string);
+
+    void settimeStamp();  //将时间转化为字符串
 };

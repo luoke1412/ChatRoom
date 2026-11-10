@@ -20,6 +20,11 @@
             //查看消息类型
             switch(msg_struct.type)
             {
+
+                case REGISTER:
+                    service.handleRegister(sockfd,msg_struct);
+                    break;
+
                 case LOGIN:
                     service.handleLogin(sockfd,msg_struct);
                     break;
@@ -30,6 +35,10 @@
 
                 case QUIT:
                     service.handleQuit(sockfd,msg_struct);
+                    break;
+                
+                default:
+                    std::cout<<"非法消息类型!\n";
                     break;
 
             }

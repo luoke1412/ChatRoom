@@ -1,4 +1,5 @@
 #include"myProto.h"
+#include"time.h"
 //我序列化定死一个包长度是MAX_MSG_SIZE。 循环读取不需要长度字段就可以避免半包和粘包，
 //如果是变长(哪怕我在序列化把temp.append(myname,NAME)改成 temp.append(myname,strlen(myname));
 //那也是变长，反序列化的时候我不知道该读多少长度)
@@ -43,4 +44,15 @@ void MSG::reserialize(std::string msg_string)
      memcpy(text,msg_string.c_str()+off,TEXT);
     off+=TEXT;
      memcpy(timestamp,msg_string.c_str()+off,TIME);
+}
+
+
+void MSG::settimeStamp()
+{
+    time_t now=time(nullptr);
+    tm* ltm=localtime(&now);
+
+    //组装时间戳  [xxx年-xxx月-xxx日 xxx时:xxx分:xxx秒]
+    snprintf(timestamp,TIME,"[%d年-%d月-%d日 %d时:%d分:%d秒]",ltm->tm_year,ltm->tm_mon,
+    ltm->tm_mday,ltm->tm_hour,ltm->tm_min,ltm->tm_sec);
 }
