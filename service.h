@@ -33,12 +33,14 @@ class Service
     std::unordered_map<int,std::string>fd_cliname;  //反向--通过fd找到套接字信息，便于直接查键
     //具体应用：客户端下线，server那里只知道fd，我要在service写接口删掉他的信息，首先通过fd查这个哈希表
     //找到名字后再删上面的表和这张表(fd已经失效了) 而注册信息持久化保存在数据库上的
-    std::mutex mutex_fd;
+    //std::mutex mutex_fd;
+
 
     void handleLogin(int sockfd,MSG&msg_struct);
     void handleChat(int sockfd,MSG&msg_struct);
     void handleQuit(int sockfd,MSG&msg_struct);  //quit是服务器主动发送退出消息，server那里是掉线，由server通知
     void handleRegister(int sockfd,MSG&msg_struct); //登录才加入哈希表，注册只是注册用户信息
+    
     void broadcast(MSG&msg_struct,int flag);
     public:
     Service(Server&s); //跟数据库相关
@@ -79,6 +81,9 @@ class Service
 
      //提供修改容器的接口
     void delLoginuser(int fd);
+
+    //新增任务类型接口
+    void  dispatch(std::string msg_string,int sockfd);
 };
 
 

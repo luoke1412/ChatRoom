@@ -1,6 +1,7 @@
 #include"threadpool.h"
 #include"service.h"  //破除循环引用 
-    void threadPool::addTask(int sockfd,char*msg_c)  //添加任务，并且要唤醒一个
+#include<functional>
+    void threadPool::addTask(int sockfd,std::string msg_string)  //添加任务，并且要唤醒一个
     {
         
         {
@@ -9,10 +10,16 @@
 
             //构造任务(同样lambda)
             //子线程必须要拿到任务体，还有通信用的套接字
-            Task.push([msg_c,this,sockfd](){  //无参！
-            //解析消息，先转化为string
-            std::string msg_string(msg_c,MAX_MSG_SIZE);
 
+            //Task.push([msg_c,this,sockfd](){  //无参！
+
+                    //同样是栈内存，生命周期问题。转移所有权
+            Task.push([m=std::move(msg_string),this,sockfd](){  //无参！
+                
+             this->service.dispatch(m,sockfd);  //调用业务层接口  
+
+
+            /*  因为涉及到解析协议类型，不该由线程池层管，而是业务层管，已移动
             struct MSG msg_struct;
             msg_struct.reserialize(msg_string);
 
@@ -44,6 +51,8 @@
             }
             //不用循环，一次消息就是一个任务，子线程执行完了就进入下一个任务
             //这是由单reactor每次请求都会由主线程接收引起的
+
+            */
         });
         }
         
@@ -95,7 +104,7 @@
                  }
             };  
 
-            threadset.emplace_back(func);   //真正创建子线程(或者用lambda表达式传入)
+            threadset.emplace_back(func);   //真正创建子线程(或者直接用lambda表达式传入)
         }
     }
     //具体方法
@@ -133,7 +142,7 @@
         // }
         // //自动解锁
 
-        //改成原子属性了
+        //原子操作，当打算修改时不会被打断
         run=false;
         //唤醒所有的线程，然后阻塞回收线程资源
         cv.notify_all();

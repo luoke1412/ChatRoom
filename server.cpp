@@ -187,8 +187,10 @@ void Server::run(threadPool&pool) //启动服务器(epoll架构)
                  
                 
                 //2.然后添加到任务队列里面(注意把文件描述符传进去)
-                if(ret!=0&&ret!=-1)pool.addTask(evfd,buf);
-
+                //if(ret!=0&&ret!=-1)pool.addTask(evfd,buf);   !!!!危险，这个数组是在网络层栈内存里啊
+                std::string msg_string(buf,MAX_MSG_SIZE); //内部字符数组是堆内存
+                 if(ret!=0&&ret!=-1)pool.addTask(evfd,std::move(msg_string)); //move:把 msg_string内部指向堆内存的指针偷了过来,
+                                                        // 本质是转移
             }
         }
     }

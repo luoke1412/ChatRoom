@@ -6,6 +6,7 @@
 
 #include"service.h"
 #include"server.h"  //要用到发送消息和广播的接口
+#include<vector>
 //处理登录
 void Service::handleLogin(int sockfd,MSG&msg_struct)
 {   
@@ -19,6 +20,7 @@ void Service::handleLogin(int sockfd,MSG&msg_struct)
         {
           std::lock_guard<std::mutex>lock(mutex_cli);
           cliname_fd[myname]=sockfd;
+           fd_cliname[sockfd]=myname;
         }
       
           //3.广播消息
@@ -33,30 +35,56 @@ void Service::handleLogin(int sockfd,MSG&msg_struct)
       }
       
 }
+/*
+- 登录那一刻，fd → 名字 还没有，只能靠数据库校验 name + password。验过了才写表。
+- 登录之后，身份锚在 fd 上。你说的“对得上”是校验；更根治的是服务器填——转发 CHAT 之前，
+   把 msg.myname 覆盖成 fd 查出来的真名。客户端写什么都不算数。
+   校验是补丁，覆盖是根治。
+*/
 void Service::handleChat(int sockfd,MSG&msg_struct)
 {
       std::string myname(msg_struct.myname);
+      std::string toname(msg_struct.toname);
+      //服务器必须检查一遍要发的户端它在不在聊天室 
+      if(cliname_fd.find(toname)==cliname_fd.end())
+      {
+          //发送错误报文
+          MSG err_struct;
+          err_struct.type=ERROR;
+          strcpy(err_struct.text,"发送方或接收方名字不存在，请重新输入");
+          return;
+      }
+
+      if(cliname_fd.find(myname)==cliname_fd.end()||strcmp(myname.c_str(),fd_cliname[sockfd].c_str()))
+      {
+          bzero(msg_struct.myname,NAME);
+          strncpy(msg_struct.myname,fd_cliname[sockfd].c_str(),fd_cliname[sockfd].size());
+      }
+
       std::string msg_string=msg_struct.serialize();
+
     //1.更新数据库
 
     //2.查询哈希表并转发
+    int fd=-1;
     {
         std::lock_guard<std::mutex>lock(mutex_cli);
-        if(cliname_fd.find(myname)!=cliname_fd.end())
-        {
-            int fd=cliname_fd[myname];
-            //发送
-            server.send_msg(fd,msg_string.c_str());
-            //perror
-        }
+        
+            fd=cliname_fd[msg_struct.toname];
     }
-    //发送也放在锁里面，因为fd本身也是临界资源
+    //发送，就是要写要锁外面。万一fd突然断开，send自带错误返回
+        if(fd!=-1)server.send_msg(fd,msg_string.c_str());
 }
 
 void Service::handleQuit(int sockfd,MSG&msg_struct)
 {
     std::string myname(msg_struct.myname);
       //1.查询和更新数据库
+    if(cliname_fd.find(myname)==cliname_fd.end()||strcmp(myname.c_str(),fd_cliname[sockfd].c_str()))
+      {
+          bzero(msg_struct.myname,NAME);
+          strncpy(msg_struct.myname,fd_cliname[sockfd].c_str(),fd_cliname[sockfd].size());
+      }
       
       //2更新两个表状态
       delLoginuser(sockfd);
@@ -73,11 +101,8 @@ void Service::handleQuit(int sockfd,MSG&msg_struct)
       bool res=1;
       if(res) //如果成功
       {
-          //2维护哈希表
-        {
-          std::lock_guard<std::mutex>lock(mutex_fd);
-          fd_cliname[sockfd]=myname;
-        }
+          //2.更新redis/数据库
+         
       
           //3.发送成功消息
           bzero(msg_struct.text,TEXT);
@@ -124,19 +149,13 @@ Service::~Service()
 
 void Service::delLoginuser(int fd)
 {
-  {
-    std::lock_guard<std::mutex>lock(mutex_fd);
-     if(fd_cliname.find(fd)==fd_cliname.end()) return;
-  }
    
   {
     std::lock_guard<std::mutex>lock(mutex_cli);
+      if(fd_cliname.find(fd)==fd_cliname.end()) return;
       if(cliname_fd.find(fd_cliname[fd])!=cliname_fd.end())
       cliname_fd.erase(fd_cliname[fd]); //相当快
-  }
-  {
-    std::lock_guard<std::mutex>lock(mutex_fd);
-    fd_cliname.erase(fd);
+      fd_cliname.erase(fd);
   }
 }
 
@@ -168,19 +187,61 @@ void Service::broadcast(MSG&msg_struct,int flag) //广播：给所有的客户�
     //先序列化再发
     std::string newmsg_string=newmsg.serialize(); 
     
+    //发送是系统调用很慢，甚至网络不好/缓冲区会阻塞，不要放到锁里面
+    std::vector<int>sockfd_set; //提前存储
     {
-        std::lock_guard<std::mutex>lock(mutex_fd);
+        std::lock_guard<std::mutex>lock(mutex_cli);
         
-        for(auto&c:fd_cliname)  //c就相当于 *it
+       for(auto&c:fd_cliname)  //c就相当于 *it
         {
             //套接字句柄
-            int sockfd=c.first;
+            sockfd_set.emplace_back(c.first);
             //注意：只发给已经登录进去的用户，保存登录信息的容器在业务层
-
-            //发送消息
-            server.send_msg(sockfd,newmsg_string.c_str());
            
         }
+        //发送消息在外面
+            for(int i=0;i<sockfd_set.size();i++)
+            {
+                server.send_msg(sockfd_set.at(i),newmsg_string.c_str());
+            }
+            
     }
+     
     
+}
+
+
+void  Service::dispatch(std::string msg_string,int sockfd)
+{
+    struct MSG msg_struct;
+    msg_struct.reserialize(msg_string);
+
+    //至此，解析成功
+    //查看消息类型
+    switch(msg_struct.type)
+    {
+
+        case REGISTER:
+            handleRegister(sockfd,msg_struct);
+            break;
+
+        case LOGIN:
+            handleLogin(sockfd,msg_struct);
+            break;
+
+        case CHAT:
+            handleChat(sockfd,msg_struct);
+            break;
+
+        case QUIT:
+            handleQuit(sockfd,msg_struct);
+            break;
+        
+        default:
+            std::cout<<"非法消息类型!\n";
+            break;
+
+    }
+    //不用循环，一次消息就是一个任务，子线程执行完了就进入下一个任务
+    //这是由单reactor每次请求都会由主线程接收引起的
 }

@@ -24,7 +24,7 @@ struct MSG
     //设置成定长，方便解析
     char myname[NAME];  //如果是聊天室，没有ID那怎么行
     char toname[NAME];  //目标用户的ID，为"ALL"则为广播(用ID来指代客户端，上层不需要知道对方的IP)
-    char text[TEXT];  //消息正文
+    char text[TEXT];  //消息正文/ 密码
     char timestamp[TIME]; // 发送时间戳 类似格式：[xxx年-xxx月-xxx日 xxx时:xxx分:xxx秒]
 
      //这里再补充两个方法，用于提高传输效率

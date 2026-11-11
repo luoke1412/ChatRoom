@@ -50,7 +50,7 @@ public:
     // void handleTask(char*buf,int newfd,sockaddr_in* cli_sockaddr);//从队列里取任务来执行
     //不用了,addtask逻辑已经写好了
 
-    void addTask(int sockfd,char*msg_c);  //封装任务，添加任务，并且要唤醒一个线程来干活
+    void addTask(int sockfd,std::string msg_string);  //封装任务，添加任务，并且要唤醒一个线程来干活
 
     //void startPool(int num); //启动线程池。 在构造的时候启动就行了
 };
